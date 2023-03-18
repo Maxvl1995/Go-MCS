@@ -7,7 +7,6 @@ import (
 	"Go-MCS/utils"
 	"context"
 	"fmt"
-	"html/template"
 	"log"
 	"net/http"
 	"strings"
@@ -24,11 +23,10 @@ type AuthController struct {
 	userService services.UserService
 	ctx         context.Context
 	collection  *mongo.Collection
-	temp        *template.Template
 }
 
-func NewAuthController(authService services.AuthService, userService services.UserService, ctx context.Context, collection *mongo.Collection, temp *template.Template) AuthController {
-	return AuthController{authService, userService, ctx, collection, temp}
+func NewAuthController(authService services.AuthService, userService services.UserService, ctx context.Context, collection *mongo.Collection) AuthController {
+	return AuthController{authService, userService, ctx, collection}
 }
 
 func (ac *AuthController) SignUpUser(ctx *gin.Context) {

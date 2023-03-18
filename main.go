@@ -3,12 +3,14 @@ package main
 import (
 	"Go-MCS/config"
 	"Go-MCS/controllers"
+	"Go-MCS/gapi"
+	"Go-MCS/pb"
 	"Go-MCS/routes"
 	"Go-MCS/services"
 	"context"
 	"fmt"
-	"html/template"
 	"log"
+	"net"
 	"net/http"
 
 	"github.com/gin-contrib/cors"
@@ -17,6 +19,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 var (
@@ -33,12 +37,9 @@ var (
 	authService         services.AuthService
 	AuthController      controllers.AuthController
 	AuthRouteController routes.AuthRouteController
-
-	temp *template.Template
 )
 
 func init() {
-	temp = template.Must(template.ParseGlob("templates/*.html"))
 	config, err := config.LoadConfig(".")
 	if err != nil {
 		log.Fatal("Could not load environment variables", err)
@@ -80,7 +81,7 @@ func init() {
 	authCollection = mongoclient.Database("golang_mongodb").Collection("users")
 	userService = services.NewUserServiceImpl(authCollection, ctx)
 	authService = services.NewAuthService(authCollection, ctx)
-	AuthController = controllers.NewAuthController(authService, userService, ctx, authCollection, temp)
+	AuthController = controllers.NewAuthController(authService, userService, ctx, authCollection)
 	AuthRouteController = routes.NewAuthRouteController(AuthController)
 
 	UserController = controllers.NewUserController(userService)
@@ -98,6 +99,33 @@ func main() {
 
 	defer mongoclient.Disconnect(ctx)
 
+	// startGinServer(config)
+	startGrpcServer(config)
+}
+
+func startGrpcServer(config config.Config) {
+	server, err := gapi.NewGrpcServer(config, authService, userService, authCollection)
+	if err != nil {
+		log.Fatal("cannot create grpc server: ", err)
+	}
+
+	grpcServer := grpc.NewServer()
+	pb.RegisterAuthServiceServer(grpcServer, server)
+	reflection.Register(grpcServer)
+
+	listener, err := net.Listen("tcp", config.GrpcServerAddress)
+	if err != nil {
+		log.Fatal("cannot create grpc server: ", err)
+	}
+
+	log.Printf("start gRPC server on %s", listener.Addr().String())
+	err = grpcServer.Serve(listener)
+	if err != nil {
+		log.Fatal("cannot create grpc server: ", err)
+	}
+}
+
+func startGinServer(config config.Config) {
 	value, err := redisclient.Get(ctx, "test").Result()
 
 	if err == redis.Nil {
